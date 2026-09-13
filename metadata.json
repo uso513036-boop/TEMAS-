@@ -1,0 +1,6 @@
+{
+  "name": "Theme Studio",
+  "description": "Personalizador completo de temas para Android con iconos personalizados, widgets interactivos y fondos de pantalla en alta resolución.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

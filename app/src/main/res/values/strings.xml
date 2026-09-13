@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Theme Studio</string>
+    <string name="widget_description">Widget interactivo con reloj, clima y acceso rápido a temas.</string>
+</resources>
