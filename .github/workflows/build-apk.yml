@@ -1,0 +1,96 @@
+name: Compilar APK Android
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Tipo de compilación'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+jobs:
+  build-apk:
+    name: Compilar APK (Theme Studio)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: ☕ Configurar Java 21 (JDK Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: 🐘 Configurar Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: 🔑 Preparar Keystore de Depuración y Variables
+        run: |
+          # Restaurar debug.keystore desde base64 si no está presente
+          if [ -f "debug.keystore.base64" ] && [ ! -f "debug.keystore" ]; then
+            echo "Decodificando debug.keystore..."
+            base64 -d debug.keystore.base64 > debug.keystore
+          fi
+
+          # Asegurar que .env exista para el plugin de Secrets
+          if [ ! -f ".env" ] && [ -f ".env.example" ]; then
+            echo "Creando .env a partir de .env.example..."
+            cp .env.example .env
+          fi
+
+          # Permisos de ejecución para el wrapper
+          chmod +x gradlew || true
+
+      - name: 🔨 Compilar APK Debug
+        if: "${{ github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == '' }}"
+        run: |
+          gradle :app:assembleDebug --stacktrace
+
+      - name: 🔨 Compilar APK Release (Sin firmar o con variables de entorno)
+        if: "${{ github.event.inputs.build_type == 'release' }}"
+        env:
+          KEYSTORE_PATH: ${{ secrets.KEYSTORE_PATH }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          gradle :app:assembleRelease --stacktrace
+
+      - name: 📦 Subir APK Debug como Artefacto
+        if: "${{ github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == '' }}"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ThemeStudio-Debug-APK
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+      - name: 📦 Subir APK Release como Artefacto
+        if: "${{ github.event.inputs.build_type == 'release' }}"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ThemeStudio-Release-APK
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      - name: 📋 Resumen de la Compilación en GitHub
+        run: |
+          echo "## 🎉 Compilación de APK Completada con Éxito" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📱 Archivos APK Generados:" >> $GITHUB_STEP_SUMMARY
+          echo "| Archivo | Tamaño |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          find app/build/outputs/apk/ -name "*.apk" -exec ls -lh {} + | awk '{print "| `" $9 "` | " $5 " |"}' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> 💡 **Para descargar el APK:** Ve a la pestaña **Actions** en tu repositorio, haz clic en esta ejecución y descarga el archivo en la sección **Artifacts**." >> $GITHUB_STEP_SUMMARY
